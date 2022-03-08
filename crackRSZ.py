@@ -50,30 +50,29 @@ mnsn_inv = msgn * modular_inv(sn, order)
 m = len(msgs)
 sys.stderr.write("Using: %d total sigs...\n" % m)
 def make_matrix(msgs,sigs,c):
-  m = len(msgs)
-  sys.stderr.write("Using: %d sigs...\n" % 20)
-  matrix = Matrix(QQ,m+2, m+2)
-
-  for i in range(0+c,20+c):
+  c = int(c)
+  #m = len(msgs)
+  sys.stderr.write("Using: %d sigs...\n" % 10)
+  matrix = Matrix(QQ,12,12)
+  for i in range(0,10):
     #matrix.append([0] * i + [order] + [0] * (m-i+1))
     matrix[i,i] = order
 
   #print(matrix)
 
-  for i in range(0,m):
-    x0=(sigs[i][0] * modular_inv(sigs[i][1], order)) - rnsn_inv
-    x1=(msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
+  for i in range(0,10):
+    x0=(sigs[i+c][0] * modular_inv(sigs[i+c][1], order)) - rnsn_inv
+    x1=(msgs[i+c] * modular_inv(sigs[i+c][1], order)) - mnsn_inv
     #print(m,i,x0,x1)
-    matrix[m+0,i] = x0
-    matrix[m+1,i] = x1
+    matrix[10,i] = x0
+    matrix[11,i] = x1
 
   #print("m",m)
   #print("i",i)
- 
-  matrix[m+0,i+1] = (int(2**B) / order)
-  matrix[m+0,i+2] = 0
-  matrix[m+1,i+1] = 0
-  matrix[m+1,i+2] = 2**B
+  matrix[10,i+1] = (int(2**B) / order)
+  matrix[10,i+2] = 0
+  matrix[11,i+1] = 0
+  matrix[11,i+2] = 2**B
 
   return matrix
   
@@ -103,14 +102,19 @@ def display_keys(keys):
     pub = privtopub(priv)
     priv = myhex
     pub = encode_pubkey(privtopub(priv), "bin_compressed")
-    print(priv)
+    pub1 = encode_pubkey(privtopub(priv), "bin")
+    print(priv)#comment out if u only need winning key
     if pubtoaddr(pub) == address:
-        print("UWIN",priv)
-  
+      print("UWIN",priv)
+    if pubtoaddr(pub1) == address:
+      print("UWIN",priv)
+
 c = 0
-while m > 20+c:
+
+while m > c:
   matrix = make_matrix(msgs,sigs,c)
+  c+=10
   new_matrix = matrix.LLL(early_red=True, use_siegel=True)
   try_red_matrix(new_matrix)
   display_keys(keys)
-  c+=20
+
