@@ -1,29 +1,19 @@
-#mod by strum
-
 import sys
+#import ecdsa
 import random
+#from sympy import mod_inverse
 from sage.all_cmdline import *   
 from bitcoin import *
 
 order = int(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141)
-filename='file.txt'
-B = 255
-limit = 10000
-address = sys.argv[1]
-def extended_gcd(aa, bb):
-    lastremainder, remainder = abs(aa), abs(bb)
-    x, lastx, y, lasty = 0, 1, 1, 0
-    while remainder:
-        lastremainder, (quotient, remainder) = remainder, divmod(lastremainder, remainder)
-        x, lastx = lastx - quotient*x, x
-        y, lasty = lasty - quotient*y, y
-    return lastremainder, lastx * (-1 if aa < 0 else 1), lasty * (-1 if bb < 0 else 1)
+filename=sys.argv[1]
+B = 176#int(sys.argv[2])
+limit = 2000#int(sys.argv[3])
+run_mode = "LLL"
 
-def modular_inv(a, m):
-    g, x, y = extended_gcd(a, m)
-    if g != 1:
-        raise ValueError
-    return x % m
+import gmpy2
+def modular_inv(a,b):
+  return int(gmpy2.invert(a,b))
 
 def load_csv(filename):
   msgs = []
@@ -40,42 +30,46 @@ def load_csv(filename):
       sigs.append((int(R,16),int(S,16)))
       #pubs.append(pub)
       n+=1
-  return msgs,sigs
+  return msgs,sigs,pubs
 
-msgs,sigs = load_csv(filename)
+msgs,sigs,pubs = load_csv(filename)
 
 msgn, rn, sn = [msgs[-1], sigs[-1][0], sigs[-1][1]]
 rnsn_inv = rn * modular_inv(sn, order)
 mnsn_inv = msgn * modular_inv(sn, order)
-m = len(msgs)
-sys.stderr.write("Using: %d total sigs...\n" % m)
-def make_matrix(msgs,sigs,c):
-  c = int(c)
-  #m = len(msgs)
-  sys.stderr.write("Using: %d sigs...\n" % 10)
-  matrix = Matrix(QQ,12,12)
-  for i in range(0,10):
+
+def make_matrix(msgs,sigs,pubs):
+  m = len(msgs)
+  sys.stderr.write("Using: %d sigs...\n" % m)
+  matrix = Matrix(QQ,m+2, m+2)
+
+  for i in range(0,m):
     #matrix.append([0] * i + [order] + [0] * (m-i+1))
     matrix[i,i] = order
 
   #print(matrix)
 
-  for i in range(0,10):
-    x0=(sigs[i+c][0] * modular_inv(sigs[i+c][1], order)) - rnsn_inv
-    x1=(msgs[i+c] * modular_inv(sigs[i+c][1], order)) - mnsn_inv
+  for i in range(0,m):
+    x0=(sigs[i][0] * modular_inv(sigs[i][1], order)) - rnsn_inv
+    x1=(msgs[i] * modular_inv(sigs[i][1], order)) - mnsn_inv
     #print(m,i,x0,x1)
-    matrix[10,i] = x0
-    matrix[11,i] = x1
+    matrix[m+0,i] = x0
+    matrix[m+1,i] = x1
 
   #print("m",m)
   #print("i",i)
-  matrix[10,i+1] = (int(2**B) / order)
-  matrix[10,i+2] = 0
-  matrix[11,i+1] = 0
-  matrix[11,i+2] = 2**B
+ 
+  matrix[m+0,i+1] = (int(2**B) / order)
+  matrix[m+0,i+2] = 0
+  matrix[m+1,i+1] = 0
+  matrix[m+1,i+2] = 2**B
 
   return matrix
-  
+
+matrix = make_matrix(msgs,sigs,pubs)
+
+#sys.stderr.write(str(matrix)+"\n")
+
 keys=[]
 def try_red_matrix(m):
   for row in m:
@@ -93,28 +87,20 @@ def try_red_matrix(m):
     except Exception as e:
       sys.stderr.write(str(e)+"\n")
       pass
+ 
+if run_mode == "LLL":
+    new_matrix = matrix.LLL(early_red=True, use_siegel=True)
+    try_red_matrix(new_matrix)
+else:
+    new_matrix = matrix.BKZ(early_red=True, use_siegel=True)
+    v = "%064x" % key
+    myhex = v[:64]
+    try_red_matrix(new_matrix)
 
 def display_keys(keys):
   for key in keys:
-    v = "%064x" % key
-    myhex = v[:64]
-    priv = myhex
-    pub = privtopub(priv)
-    priv = myhex
-    pub = encode_pubkey(privtopub(priv), "bin_compressed")
-    pub1 = encode_pubkey(privtopub(priv), "bin")
-    print(priv)#comment out if u only need winning key
-    if pubtoaddr(pub) == address:
-      print("UWIN",priv)
-    if pubtoaddr(pub1) == address:
-      print("UWIN",priv)
-
-c = 0
-
-while m > c:
-  matrix = make_matrix(msgs,sigs,c)
-  c+=10
-  new_matrix = matrix.LLL(early_red=True, use_siegel=True)
-  try_red_matrix(new_matrix)
-  display_keys(keys)
-
+    #priv = myhex
+    #pub = privtopub(priv)
+    #print(priv)
+    print(hex(key))
+display_keys(keys)# prints hex keys, mostly 2nd one is correct 
