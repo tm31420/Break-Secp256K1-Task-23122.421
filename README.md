@@ -8,7 +8,7 @@ then:
 ./sage -sh
 
 
-python3 crackRSZ.py 1JUToCyRL5UwgeucjnFAagKs4v1YqhjT1d
+python3 crackRSZ.py file.txt
 
 
 
